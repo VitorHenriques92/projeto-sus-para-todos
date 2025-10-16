@@ -1,4 +1,7 @@
+// Importa a conexão com o banco de dados configurada no arquivo "db.ts"
 import { db } from "./db";
+
+// Importa os tipos e tabelas definidas no schema compartilhado
 import {
   type Hospital,
   type InsertHospital,
@@ -16,157 +19,75 @@ import {
   news,
   users,
 } from "@shared/schema";
+
+// Importa funções auxiliares do Drizzle ORM para construir consultas SQL
 import { eq, and, gte, sql } from "drizzle-orm";
 
+
+// 🔹 Interface que define as operações que o armazenamento (banco) precisa oferecer.
+// Isso serve como contrato: qualquer classe que implemente `IStorage` precisa ter esses métodos.
 export interface IStorage {
-  getHospitals(): Promise<Hospital[]>;
-  getHospital(id: string): Promise<Hospital | undefined>;
-  createHospital(hospital: InsertHospital): Promise<Hospital>;
+  // --- HOSPITAIS ---
+  getHospitals(): Promise<Hospital[]>; // Retorna todos os hospitais
+  getHospital(id: string): Promise<Hospital | undefined>; // Busca hospital por ID
+  createHospital(hospital: InsertHospital): Promise<Hospital>; // Cria novo hospital
 
-  getSpecialties(): Promise<Specialty[]>;
-  getSpecialty(id: string): Promise<Specialty | undefined>;
-  createSpecialty(specialty: InsertSpecialty): Promise<Specialty>;
-  updateSpecialtyImage(id: string, imageUrl: string): Promise<void>;
+  // --- ESPECIALIDADES ---
+  getSpecialties(): Promise<Specialty[]>; // Retorna todas as especialidades
+  getSpecialty(id: string): Promise<Specialty | undefined>; // Busca especialidade por ID
+  createSpecialty(specialty: InsertSpecialty): Promise<Specialty>; // Cria nova especialidade
+  updateSpecialtyImage(id: string, imageUrl: string): Promise<void>; // Atualiza imagem da especialidade
 
-  getAppointments(userId: string): Promise<Appointment[]>;
-  getAppointment(id: string, userId: string): Promise<Appointment | undefined>;
-  getAppointmentsByDate(date: Date, userId: string): Promise<Appointment[]>;
-  createAppointment(appointment: InsertAppointment, userId: string): Promise<Appointment>;
-  updateAppointment(id: string, appointment: Partial<InsertAppointment>, userId: string): Promise<Appointment>;
-  deleteAppointment(id: string, userId: string): Promise<void>;
+  // --- CONSULTAS / AGENDAMENTOS ---
+  getAppointments(userId: string): Promise<Appointment[]>; // Retorna todas as consultas de um usuário
+  getAppointment(id: string, userId: string): Promise<Appointment | undefined>; // Busca consulta específica
+  getAppointmentsByDate(date: Date, userId: string): Promise<Appointment[]>; // Filtra consultas por data
+  createAppointment(appointment: InsertAppointment, userId: string): Promise<Appointment>; // Cria nova consulta
+  updateAppointment(id: string, appointment: Partial<InsertAppointment>, userId: string): Promise<Appointment>; // Atualiza uma consulta
+  deleteAppointment(id: string, userId: string): Promise<void>; // Exclui uma consulta
 
-  getNews(): Promise<News[]>;
-  getNewsItem(id: string): Promise<News | undefined>;
-  createNews(newsItem: InsertNews): Promise<News>;
-  updateNewsImage(id: string, imageUrl: string): Promise<void>;
+  // --- NOTÍCIAS ---
+  getNews(): Promise<News[]>; // Retorna todas as notícias (ordenadas por data)
+  getNewsItem(id: string): Promise<News | undefined>; // Busca notícia específica
+  createNews(newsItem: InsertNews): Promise<News>; // Cria nova notícia
+  updateNewsImage(id: string, imageUrl: string): Promise<void>; // Atualiza imagem da notícia
 
-  createUser(user: InsertUser): Promise<User>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  getUserById(id: string): Promise<User | undefined>;
-  updateUserPassword(id: string, passwordHash: string): Promise<void>;
-  updateUserProfile(id: string, data: { email?: string; phone?: string }): Promise<User>;
+  // --- USUÁRIOS ---
+  createUser(user: InsertUser): Promise<User>; // Cria novo usuário
+  getUserByEmail(email: string): Promise<User | undefined>; // Busca usuário por email
+  getUserById(id: string): Promise<User | undefined>; // Busca usuário por ID
+  updateUserPassword(id: string, passwordHash: string): Promise<void>; // Atualiza senha
+  updateUserProfile(id: string, data: { email?: string; phone?: string }): Promise<User>; // Atualiza perfil (email/telefone)
 }
 
+
+// 🔹 Implementação concreta da interface IStorage, utilizando o Drizzle ORM
 export class DatabaseStorage implements IStorage {
+
+  // --- HOSPITAIS ---
+
+  // Retorna todos os hospitais cadastrados
   async getHospitals(): Promise<Hospital[]> {
     return await db.select().from(hospitals);
   }
 
+  // Retorna um hospital específico pelo ID
   async getHospital(id: string): Promise<Hospital | undefined> {
     const result = await db.select().from(hospitals).where(eq(hospitals.id, id));
     return result[0];
   }
 
+  // Cria um novo hospital no banco
   async createHospital(hospital: InsertHospital): Promise<Hospital> {
     const result = await db.insert(hospitals).values(hospital).returning();
     return result[0];
   }
 
+  // --- ESPECIALIDADES ---
+
+  // Retorna todas as especialidades cadastradas
   async getSpecialties(): Promise<Specialty[]> {
     return await db.select().from(specialties);
   }
 
-  async getSpecialty(id: string): Promise<Specialty | undefined> {
-    const result = await db.select().from(specialties).where(eq(specialties.id, id));
-    return result[0];
-  }
-
-  async createSpecialty(specialty: InsertSpecialty): Promise<Specialty> {
-    const result = await db.insert(specialties).values(specialty).returning();
-    return result[0];
-  }
-
-  async updateSpecialtyImage(id: string, imageUrl: string): Promise<void> {
-    await db.update(specialties).set({ imageUrl }).where(eq(specialties.id, id));
-  }
-
-  async getAppointments(userId: string): Promise<Appointment[]> {
-    return await db.select().from(appointments).where(eq(appointments.userId, userId));
-  }
-
-  async getAppointment(id: string, userId: string): Promise<Appointment | undefined> {
-    const result = await db.select().from(appointments).where(
-      and(eq(appointments.id, id), eq(appointments.userId, userId))
-    );
-    return result[0];
-  }
-
-  async getAppointmentsByDate(date: Date, userId: string): Promise<Appointment[]> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    return await db
-      .select()
-      .from(appointments)
-      .where(
-        and(
-          gte(appointments.appointmentDate, startOfDay),
-          eq(appointments.userId, userId)
-        )
-      );
-  }
-
-  async createAppointment(appointment: InsertAppointment, userId: string): Promise<Appointment> {
-    const result = await db.insert(appointments).values({ ...appointment, userId }).returning();
-    return result[0];
-  }
-
-  async updateAppointment(id: string, appointment: Partial<InsertAppointment>, userId: string): Promise<Appointment> {
-    const result = await db.update(appointments).set(appointment).where(
-      and(eq(appointments.id, id), eq(appointments.userId, userId))
-    ).returning();
-    return result[0];
-  }
-
-  async deleteAppointment(id: string, userId: string): Promise<void> {
-    await db.delete(appointments).where(
-      and(eq(appointments.id, id), eq(appointments.userId, userId))
-    );
-  }
-
-  async getNews(): Promise<News[]> {
-    return await db.select().from(news).orderBy(sql`${news.publishedAt} DESC`);
-  }
-
-  async getNewsItem(id: string): Promise<News | undefined> {
-    const result = await db.select().from(news).where(eq(news.id, id));
-    return result[0];
-  }
-
-  async createNews(newsItem: InsertNews): Promise<News> {
-    const result = await db.insert(news).values(newsItem).returning();
-    return result[0];
-  }
-
-  async updateNewsImage(id: string, imageUrl: string): Promise<void> {
-    await db.update(news).set({ imageUrl }).where(eq(news.id, id));
-  }
-
-  async createUser(user: InsertUser): Promise<User> {
-    const result = await db.insert(users).values(user).returning();
-    return result[0];
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.email, email));
-    return result[0];
-  }
-
-  async getUserById(id: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.id, id));
-    return result[0];
-  }
-
-  async updateUserPassword(id: string, passwordHash: string): Promise<void> {
-    await db.update(users).set({ passwordHash }).where(eq(users.id, id));
-  }
-
-  async updateUserProfile(id: string, data: { email?: string; phone?: string }): Promise<User> {
-    const result = await db.update(users).set(data).where(eq(users.id, id)).returning();
-    return result[0];
-  }
-}
-
-export const storage = new DatabaseStorage();
+  // Retorna uma especialidade específ
