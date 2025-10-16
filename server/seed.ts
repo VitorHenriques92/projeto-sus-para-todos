@@ -1,9 +1,14 @@
+// Importa a conexão com o banco de dados configurada no arquivo "db.ts"
 import { db } from "./db";
+// Importa as tabelas que serão populadas (hospitais, especialidades e notícias)
 import { hospitals, specialties, news } from "@shared/schema";
 
+
+// 🔹 Função principal responsável por popular o banco de dados (seed)
 async function seed() {
   console.log("Seeding database...");
 
+  // --- Dados iniciais de hospitais ---
   const hospitalsData = [
     {
       name: "Hospital Municipal de São Caetano",
@@ -22,6 +27,7 @@ async function seed() {
     },
   ];
 
+  // --- Dados iniciais de especialidades médicas ---
   const specialtiesData = [
     { name: "Cardiologia" },
     { name: "Ortopedia" },
@@ -33,6 +39,7 @@ async function seed() {
     { name: "Clínico Geral" },
   ];
 
+  // --- Dados iniciais de notícias de saúde ---
   const newsData = [
     {
       title: "Nova Campanha de Vacinação contra a Gripe",
@@ -85,32 +92,41 @@ async function seed() {
   ];
 
   try {
+    // --- INSERÇÃO DE HOSPITAIS ---
     const existingHospitals = await db.select().from(hospitals);
+    // Verifica se já existem hospitais no banco
     if (existingHospitals.length === 0) {
+      // Se não existir nenhum, insere os dados iniciais
       await db.insert(hospitals).values(hospitalsData);
       console.log("✓ Hospitais inseridos");
     }
 
+    // --- INSERÇÃO DE ESPECIALIDADES ---
     const existingSpecialties = await db.select().from(specialties);
     if (existingSpecialties.length === 0) {
       await db.insert(specialties).values(specialtiesData);
       console.log("✓ Especialidades inseridas");
     }
 
+    // --- INSERÇÃO DE NOTÍCIAS ---
     const existingNews = await db.select().from(news);
     if (existingNews.length === 0) {
       await db.insert(news).values(newsData);
       console.log("✓ Notícias inseridas");
     }
 
-    console.log("Database seeded successfully!");
+    console.log("✅ Database seeded successfully!"); // Mensagem final de sucesso
   } catch (error) {
-    console.error("Error seeding database:", error);
-    throw error;
+    // Caso ocorra algum erro durante o processo
+    console.error("❌ Error seeding database:", error);
+    throw error; // Relança o erro para o bloco catch externo capturar
   }
 }
 
+// Executa a função seed
 seed().catch((error) => {
+  // Se ocorrer erro, exibe e encerra o processo com código 1 (falha)
   console.error(error);
   process.exit(1);
 });
+
